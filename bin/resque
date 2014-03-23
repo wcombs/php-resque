@@ -25,9 +25,18 @@ if (!class_exists('Composer\Autoload\ClassLoader', false)) {
     );
 }
 
-$QUEUE = getenv('QUEUE');
 if(empty($QUEUE)) {
     die("Set QUEUE env var containing the list of queues to work.\n");
+}
+$QUEUE_LIST = "";
+$first = true;
+foreach ($QUEUE as $name => $max){
+    if ($first == true){
+        $first = false;
+        $QUEUE_LIST .= "$name";
+    } else {
+        $QUEUE_LIST .= ",$name";
+    }
 }
 
 $REDIS_BACKEND = getenv('REDIS_BACKEND');
@@ -94,8 +103,7 @@ if($count > 1) {
         }
         // Child, start the worker
         else if(!$pid) {
-            $queues = explode(',', $QUEUE);
-            $worker = new Resque_Worker($queues);
+            $worker = new Resque_Worker($QUEUE);
             $worker->setLogger($logger);
             $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker {worker}', array('worker' => $worker));
             $worker->work($interval, $BLOCKING);
@@ -105,8 +113,7 @@ if($count > 1) {
 }
 // Start a single worker
 else {
-    $queues = explode(',', $QUEUE);
-    $worker = new Resque_Worker($queues);
+    $worker = new Resque_Worker($QUEUE);
     $worker->setLogger($logger);
 
     $PIDFILE = getenv('PIDFILE');

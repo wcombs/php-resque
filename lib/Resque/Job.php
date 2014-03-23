@@ -13,6 +13,8 @@ class Resque_Job
 	 */
 	public $queue;
 
+	public $currentData;
+
 	/**
 	 * @var Resque_Worker Instance of the Resque worker running this job.
 	 */
@@ -119,7 +121,11 @@ class Resque_Job
 		}
 
 		$statusInstance = new Resque_Job_Status($this->payload['id']);
-		$statusInstance->update($status);
+		$statusInstance->update($status, $this->currentData);
+		if ($status == Resque_Job_Status::STATUS_COMPLETE ||
+			$status == Resque_Job_Status::STATUS_FAILED) {
+			$this->currentData = null;
+		}
 	}
 
 	/**
@@ -208,6 +214,13 @@ class Resque_Job
 		}
 
 		return true;
+	}
+
+	public function onKill() {
+		$instance = $this->getInstance();
+		if(method_exists($instance, 'onKill')){
+			$instance->onKill();
+		}
 	}
 
 	/**
