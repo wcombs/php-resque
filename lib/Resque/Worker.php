@@ -246,6 +246,7 @@ class Resque_Worker
 	 */
 	public function perform(Resque_Job $job)
 	{
+		$redis = Resque::redis();
 		try {
 			Resque_Event::trigger('afterFork', $job);
 			$redis->hincrby("resque:qcount:" . $this->hostname, $job->queue, 1);
