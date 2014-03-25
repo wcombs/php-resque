@@ -223,7 +223,11 @@ class Resque_Worker
 				$this->logger->log(Psr\Log\LogLevel::INFO, $status);
 
 				// Wait until the child process finishes before continuing
-				pcntl_waitpid($this->child, $status);
+				while(0 == pcntl_waitpid($this->child, $status, WNOHANG)) {
+					pcntl_signal_dispatch();
+					sleep(1);
+				}
+
 				$exitStatus = pcntl_wexitstatus($status);
 				if($exitStatus !== 0) {
 					$job->fail(new Resque_Job_DirtyExitException(
