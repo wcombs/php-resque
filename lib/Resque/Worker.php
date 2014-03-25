@@ -206,7 +206,7 @@ class Resque_Worker
 			// Forked and we're the child. Run the job.
 			if ($this->child === 0 || $this->child === false) {
 				$status = 'Processing ' . $job->queue . ' since ' . strftime('%F %T');
-				$this->updateProcLine($status);
+				$this->updateProcLine($status, "resque-child-");
 				$this->logger->log(Psr\Log\LogLevel::INFO, $status);
 				$this->registerChildHandlers($job);
 				$this->workingOn($job, getmypid());
@@ -373,9 +373,9 @@ class Resque_Worker
 	 *
 	 * @param string $status The updated process title.
 	 */
-	private function updateProcLine($status)
+	private function updateProcLine($status, $procPrefix = "resque-worker-")
 	{
-		$processTitle = 'resque-' . Resque::VERSION . ': ' . $status;
+		$processTitle = $procPrefix . Resque::VERSION . ': ' . $status;
 		if(function_exists('cli_set_process_title')) {
 			cli_set_process_title($processTitle);
 		}
