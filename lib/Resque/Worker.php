@@ -295,8 +295,8 @@ class Resque_Worker
 			foreach($members as $member){
 				$memberHash = array();
 				$tempHash = $redis->hgetall("resque:qcount:" . $member);
-				for ($i = 0; $i < count($tempHash); $i += 2){
-					$memberHash[$tempHash[$i]] = intval($tempHash[$i+1]);
+				foreach($tempHash as $qName => $qCount){
+					$memberHash[$qName] = intval($qCount);
 				}
 				foreach($queues as $name => $max){
 					if ($memberHash[$name] != null){
