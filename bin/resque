@@ -89,13 +89,34 @@ if(!empty($COUNT) && $COUNT > 1) {
     $count = $COUNT;
 }
 
+$single = 1;
+$SINGLE = getenv('SINGLE');
+if(!empty($SINGLE)) {
+    $single = $SINGLE;
+}
+
 $PREFIX = getenv('PREFIX');
 if(!empty($PREFIX)) {
     $logger->log(Psr\Log\LogLevel::INFO, 'Prefix set to {prefix}', array('prefix' => $PREFIX));
     Resque_Redis::prefix($PREFIX);
 }
 
-if($count > 1) {
+
+// Start a single worker
+if($SINGLE == 1) {
+    $worker = new Resque_Worker($QUEUE);
+    $worker->setLogger($logger);
+
+    $PIDFILE = getenv('PIDFILE');
+    if ($PIDFILE) {
+        file_put_contents($PIDFILE, getmypid()) or
+            die('Could not write PID information to ' . $PIDFILE);
+    }
+
+    $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker {worker}', array('worker' => $worker));
+    $worker->work($interval, $BLOCKING);
+}
+else {
     for($i = 0; $i < $count; ++$i) {
         $pid = Resque::fork();
         if($pid == -1) {
@@ -111,19 +132,5 @@ if($count > 1) {
             break;
         }
     }
-}
-// Start a single worker
-else {
-    $worker = new Resque_Worker($QUEUE);
-    $worker->setLogger($logger);
-
-    $PIDFILE = getenv('PIDFILE');
-    if ($PIDFILE) {
-        file_put_contents($PIDFILE, getmypid()) or
-            die('Could not write PID information to ' . $PIDFILE);
-    }
-
-    $logger->log(Psr\Log\LogLevel::NOTICE, 'Starting worker {worker}', array('worker' => $worker));
-    $worker->work($interval, $BLOCKING);
 }
 ?>
