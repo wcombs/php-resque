@@ -48,7 +48,7 @@ foreach ($QUEUE as $name => $max){
     }
 }
 
-$REDIS_BACKEND = SYMP_RESQUE_HOST;
+$REDIS_BACKEND = SYMP_RESQUE_REDIS_HOST;
 $REDIS_BACKEND_DB = getenv('REDIS_BACKEND_DB');
 if(!empty($REDIS_BACKEND)) {
     if (empty($REDIS_BACKEND_DB))
