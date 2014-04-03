@@ -13,6 +13,8 @@ class Resque_Job
 	 */
 	public $queue;
 
+	public $currentData;
+
 	/**
 	 * @var Resque_Worker Instance of the Resque worker running this job.
 	 */
@@ -78,9 +80,9 @@ class Resque_Job
      * @param string $queue The name of the queue to check for a job in.
      * @return null|object Null when there aren't any waiting jobs, instance of Resque_Job when a job was found.
      */
-    public static function reserve($queue)
+    public static function reserve($queue, $max = null)
     {
-        $payload = Resque::pop($queue);
+        $payload = Resque::pop($queue, $max);
         if(!is_array($payload)) {
             return false;
         }
@@ -119,7 +121,11 @@ class Resque_Job
 		}
 
 		$statusInstance = new Resque_Job_Status($this->payload['id']);
-		$statusInstance->update($status);
+		$statusInstance->update($status, $this->currentData);
+		if ($status == Resque_Job_Status::STATUS_COMPLETE ||
+			$status == Resque_Job_Status::STATUS_FAILED) {
+			$this->currentData = null;
+		}
 	}
 
 	/**
@@ -208,6 +214,13 @@ class Resque_Job
 		}
 
 		return true;
+	}
+
+	public function onKill() {
+		$instance = $this->getInstance();
+		if(method_exists($instance, 'onKill')){
+			$instance->onKill();
+		}
 	}
 
 	/**

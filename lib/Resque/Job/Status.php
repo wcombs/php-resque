@@ -84,7 +84,7 @@ class Resque_Job_Status
 	 *
 	 * @param int The status of the job (see constants in Resque_Job_Status)
 	 */
-	public function update($status)
+	public function update($status, $data)
 	{
 		if(!$this->isTracking()) {
 			return;
@@ -93,6 +93,7 @@ class Resque_Job_Status
 		$statusPacket = array(
 			'status' => $status,
 			'updated' => time(),
+			'data'    => $data
 		);
 		Resque::redis()->set((string)$this, json_encode($statusPacket));
 
@@ -120,6 +121,18 @@ class Resque_Job_Status
 		}
 
 		return $statusPacket['status'];
+	}
+
+	public function getFull() {
+		if(!$this->isTracking()) {
+			return false;
+		}
+
+		$statusPacket = json_decode(Resque::redis()->get((string)$this), true);
+		if(!$statusPacket) {
+			return false;
+		}
+		return $statusPacket;
 	}
 
 	/**
