@@ -250,20 +250,20 @@ class Resque_Worker
 	 */
 	public function perform(Resque_Job $job)
 	{
-		$redis = Resque::redis();
 		try {
 			Resque_Event::trigger('afterFork', $job);
-			$redis->hincrby("resque:qcount:" . $this->hostname, $job->queue, 1);
 			$job->perform();
 		}
 		catch(Exception $e) {
 			$this->logger->log(Psr\Log\LogLevel::CRITICAL, '{job} has failed {stack}', array('job' => $job, 'stack' => $e->getMessage()));
 			$job->fail($e);
-			$redis->hincrby("resque:qcount:" . $this->hostname, $job->queue, -1);
+			$this->logger->log(Psr\Log\LogLevel::INFO, 'decrementing because job finished WITH exceptions');
+			$this->decrQCount($job->queue);
 			return;
 		}
 
-		$redis->hincrby("resque:qcount:" . $this->hostname, $job->queue, -1);
+		$this->logger->log(Psr\Log\LogLevel::INFO, 'decrementing because job finished with no exceptions');
+		$this->decrQCount($job->queue);
 		$job->updateStatus(Resque_Job_Status::STATUS_COMPLETE);
 		$this->logger->log(Psr\Log\LogLevel::NOTICE, '{job} has finished', array('job' => $job));
 	}
@@ -289,34 +289,11 @@ class Resque_Worker
 				return $job;
 			}
 		} else {
-			$redis = Resque::redis();
-			$counts = array();
-			$members = $redis->smembers("qcounts");
-			foreach($members as $member){
-				$memberHash = array();
-				$tempHash = $redis->hgetall("resque:qcount:" . $member);
-				foreach($tempHash as $qName => $qCount){
-					$memberHash[$qName] = intval($qCount);
-				}
-				foreach($queues as $name => $max){
-					if ($memberHash[$name] != null){
-						if ($counts[$name] == null){
-							$counts[$name] = 0;
-						}
-						$counts[$name] += $memberHash[$name];
-					}
-				}
-			}
 			foreach($queues as $queue => $maxRunning) {
 				$this->logger->log(Psr\Log\LogLevel::INFO, 'Checking {queue} for jobs ' . $queue);
-					if ($counts[$queue] >= $maxRunning){
-						$this->logger->log(Psr\Log\LogLevel::INFO, 'Max jobs running for ' . $queue);
-						continue;
-					}
-
-				$job = Resque_Job::reserve($queue);
+				$job = Resque_Job::reserve($queue, $maxRunning);
 				if($job) {
-					$this->logger->log(Psr\Log\LogLevel::INFO, 'Found job on {queue} ' . $queue);
+					$this->logger->log(Psr\Log\LogLevel::NOTICE, 'Found job on {queue} ' . $queue);
 					return $job;
 				}
 			}
@@ -348,18 +325,39 @@ class Resque_Worker
 	}
 
 	/**
+	 * Decrements the qcount for the given queue by 1, in an atomic fashion, not letting it go negative.
+	 *
+	 * @param string $queueName Name of queue to decrement by 1
+	 */
+	private function decrQCount($queueName)
+	{
+		$redis = Resque::redis();
+		$doneDecr = false;
+		while (!$doneDecr) {
+			$redis->watch("qcount:$queueName");
+			$thisQCount = $redis->get("qcount:$queueName");
+			if ($thisQCount <= 0){
+				$this->logger->log(Psr\Log\LogLevel::INFO, 'QCount already at 0 for ' . $queueName);
+				return;
+			}
+			$ret = $redis->multi()->decr($redis->getPrefix() . "qcount:" . $queueName)->exec();
+			if($ret === false) {
+				$this->logger->log(Psr\Log\LogLevel::INFO, 'Race condition averted, waiting to decr for {queue} ' . $queue);
+				sleep(rand(1, 2));
+				continue;
+			} else {
+				$doneDecr = true;
+			}
+		}
+	}
+
+	/**
 	 * Perform necessary actions to start a worker.
 	 */
 	private function startup()
 	{
 		global $QUEUE;
 		$redis = Resque::redis();
-		// Reset our queue counts.
-		$redis->srem("qcounts", $this->hostname);
-		$redis->del("qcount:" . $this->hostname);
-		// Let other workers start up too so we don't prune them by accident.
-		sleep(10);
-		$redis->sadd("qcounts", $this->hostname);
 		$this->registerSigHandlers();
 		$this->pruneDeadWorkers();
 		Resque_Event::trigger('beforeFirstFork', $this);
@@ -452,7 +450,7 @@ class Resque_Worker
 	 * Force an immediate shutdown of the worker, killing any child jobs
 	 * currently running.
 	 */
-	public function shutdownNow()
+	public function shutDownNow()
 	{
 		$this->shutdown();
 		$this->killChild();

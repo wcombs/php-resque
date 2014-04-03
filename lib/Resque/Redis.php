@@ -64,7 +64,8 @@ class Resque_Redis
 		'zcard',
 		'zscore',
 		'zremrangebyscore',
-		'sort'
+		'sort',
+		'watch'
 	);
 	// sinterstore
 	// sunion

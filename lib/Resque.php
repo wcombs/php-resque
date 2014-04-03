@@ -112,17 +112,32 @@ class Resque
 	 * return it.
 	 *
 	 * @param string $queue The name of the queue to fetch an item from.
+	 * @param int $max The optional max concurrency of this queue.
 	 * @return array Decoded item from the queue.
 	 */
-	public static function pop($queue)
+	public static function pop($queue, $max = null)
 	{
-        $item = self::redis()->lpop('queue:' . $queue);
-
-		if(!$item) {
+		$r = self::redis();
+		$r->watch(Array("queue:$queue", "qcount:$queue"));
+		$len = $r->llen("queue:$queue");
+		if ($len < 1) {
+			// No jobs on this queue, bail before we incr/decr qcounts
 			return;
 		}
 
-		return json_decode($item, true);
+		$thisQCount = $r->get("qcount:$queue");
+		if ($max && $thisQCount >= $max){
+			// This queue is maxed out
+			return;
+		}
+		// This multi only finishes if there were no changes on this queue or its qcounts, if it fails we bail
+		$ret = $r->multi()->lpop($r->getPrefix() . "queue:$queue")->incr($r->getPrefix() . "qcount:$queue")->exec();
+		if($ret === false) {
+			sleep(rand(1, 2));
+			return;
+		} else {
+			return json_decode($ret[0], true);
+		}
 	}
 
     /**
