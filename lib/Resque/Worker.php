@@ -169,7 +169,8 @@ class Resque_Worker
 					$this->logger->log(Psr\Log\LogLevel::INFO, 'Starting blocking with timeout of {interval}', array('interval' => $interval));
 					$this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with blocking timeout ' . $interval);
 				} else {
-					$this->updateProcLine('Waiting for ' . implode(',', $this->queues) . ' with interval ' . $interval);
+					//$this->updateProcLine('Waiting for ' . $this->queueNames);
+					$this->updateProcLine('Waiting for a job to grab');
 				}
 
 				$job = $this->reserve($blocking, $interval);
@@ -189,9 +190,10 @@ class Resque_Worker
 						$this->updateProcLine('Paused');
 					}
 					else {
-						$this->updateProcLine('Waiting for ' . $this->queueNames);
+						//$this->updateProcLine('Waiting for ' . $this->queueNames);
+						$this->updateProcLine('Waiting for a job to grab');
 					}
-
+					pcntl_signal_dispatch();
 					usleep($interval * 1000000);
 				}
 
@@ -227,12 +229,17 @@ class Resque_Worker
 					pcntl_signal_dispatch();
 					sleep(1);
 				}
-
-				$exitStatus = pcntl_wexitstatus($status);
-				if($exitStatus !== 0) {
-					$job->fail(new Resque_Job_DirtyExitException(
-						'Job exited with exit code ' . $exitStatus
-					));
+				$exitStatus = 0;
+				if (pcntl_wifexited($status) === true) {
+					$exitStatus = pcntl_wexitstatus($status);
+					if($exitStatus !== 0) {
+						$job->fail(new Resque_Job_DirtyExitException(
+							'Job exited with status ' . $exitStatus
+						));
+					}
+				} else {
+					$this->logger->log(Psr\Log\LogLevel::INFO, "decrementing because child was 9'd (SIGKILL'd)");
+					$this->decrQCount($job->queue);
 				}
 			}
 
@@ -470,7 +477,7 @@ class Resque_Worker
 		$this->logger->log(Psr\Log\LogLevel::INFO, 'Killing child at {child}', array('child' => $this->child));
 		if(exec('ps -o pid,state -p ' . $this->child, $output, $returnCode) && $returnCode != 1) {
 			$this->logger->log(Psr\Log\LogLevel::DEBUG, 'Child {child} found, killing.', array('child' => $this->child));
-			posix_kill($this->child, SIGKILL);
+			posix_kill($this->child, SIGTERM);
 			$this->child = null;
 		}
 		else {
