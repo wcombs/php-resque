@@ -13,11 +13,7 @@ class Resque_Log extends Psr\Log\AbstractLogger
 
 	public function __construct($verbose = false, $logfile = false) {
 		$this->verbose = $verbose;
-		if (is_writable($logfile)) {
-			$this->logfile = $logfile;
-		} else {
-			$logfile = false;
-		}
+		$this->logfile = $logfile;
 	}
 
 	/**
