@@ -9,9 +9,15 @@
 class Resque_Log extends Psr\Log\AbstractLogger 
 {
 	public $verbose;
+	public $logfile;
 
-	public function __construct($verbose = false) {
+	public function __construct($verbose = false, $logfile = false) {
 		$this->verbose = $verbose;
+		if (is_writable($logfile)) {
+			$this->logfile = $logfile;
+		} else {
+			$logfile = false;
+		}
 	}
 
 	/**
@@ -24,19 +30,38 @@ class Resque_Log extends Psr\Log\AbstractLogger
 	 */
 	public function log($level, $message, array $context = array())
 	{
+		if ($this->logfile) {
+			if (!$loghandle = fopen($this->logfile, 'a')) {
+				fwrite(STDOUT, "Cannot open file ($this->logfile)" . PHP_EOL);
+				exit;
+			}
+		}
+
 		if ($this->verbose) {
-			fwrite(
-				STDOUT,
-				'[' . $level . '] [' . strftime('%T %Y-%m-%d') . '] ' . $this->interpolate($message, $context) . PHP_EOL
-			);
+			$logline = '[' . $level . '] [' . strftime('%T %Y-%m-%d') . '] ' . $this->interpolate($message, $context) . PHP_EOL;
+			if ($this->logfile) {
+				if (fwrite($loghandle, $logline) === FALSE) {
+					fwrite(STDOUT, "Cannot write to file ($filename)" . PHP_EOL);
+					exit;
+				}
+				fclose($loghandle);
+			} else {
+				fwrite(STDOUT, $logline);
+			}
 			return;
 		}
 
 		if (!($level === Psr\Log\LogLevel::INFO || $level === Psr\Log\LogLevel::DEBUG)) {
-			fwrite(
-				STDOUT,
-				'[' . $level . '] ' . $this->interpolate($message, $context) . PHP_EOL
-			);
+			$logline = '[' . $level . '] ' . $this->interpolate($message, $context) . PHP_EOL;
+			if ($this->logfile) {
+				if (fwrite($loghandle, $logline) === FALSE) {
+					fwrite(STDOUT, "Cannot write to file ($filename)" . PHP_EOL);
+					exit;
+				}
+				fclose($loghandle);
+			} else {
+				fwrite(STDOUT, $logline);
+			}
 		}
 	}
 
