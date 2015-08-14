@@ -200,7 +200,7 @@ class Resque_Worker
 				continue;
 			}
 
-			$this->logger->log(Psr\Log\LogLevel::NOTICE, 'Starting work on {job}', array('job' => $job));
+			$this->logger->log(Psr\Log\LogLevel::NOTICE, 'Worker {worker} starting work on {job}', array('worker' => $this->hostname, 'job' => $job));
 			Resque_Event::trigger('beforeFork', $job);
 
 			$this->child = Resque::fork();
@@ -263,6 +263,9 @@ class Resque_Worker
 		}
 		catch(Exception $e) {
 			$this->logger->log(Psr\Log\LogLevel::CRITICAL, '{job} has failed {stack}', array('job' => $job, 'stack' => $e->getMessage()));
+
+			$this->logger->log(Psr\Log\LogLevel::NOTICE, JOB_DONE_PREFIX . ' ' . strftime('%Y-%m-%d %T') . ' ' . $job->payload['id']);
+
 			$job->fail($e);
 			$this->logger->log(Psr\Log\LogLevel::INFO, 'decrementing because job finished WITH exceptions');
 			$this->decrQCount($job->queue);
@@ -273,6 +276,8 @@ class Resque_Worker
 		$this->decrQCount($job->queue);
 		$job->updateStatus(Resque_Job_Status::STATUS_COMPLETE);
 		$this->logger->log(Psr\Log\LogLevel::NOTICE, '{job} has finished', array('job' => $job));
+		
+		$this->logger->log(Psr\Log\LogLevel::NOTICE, JOB_DONE_PREFIX . ' ' . strftime('%Y-%m-%d %T') . ' ' . $job->payload['id']);
 	}
 
 
@@ -300,7 +305,7 @@ class Resque_Worker
 				$this->logger->log(Psr\Log\LogLevel::INFO, 'Checking {queue} for jobs ' . $queue);
 				$job = Resque_Job::reserve($queue, $maxRunning);
 				if($job) {
-					$this->logger->log(Psr\Log\LogLevel::NOTICE, 'Found job on {queue} ' . $queue);
+					$this->logger->log(Psr\Log\LogLevel::INFO, 'Found job on {queue} ' . $queue);
 					return $job;
 				}
 			}
