@@ -12,7 +12,7 @@ class Resque_Job_Status
 	const STATUS_RUNNING = 2;
 	const STATUS_FAILED = 3;
 	const STATUS_COMPLETE = 4;
-	const STATUS_EXPIRE_SECS = 604800;
+	const STATUS_EXPIRE_SECS = 2419200;
 
 	/**
 	 * @var string The ID of the job this status class refers back to.
@@ -106,13 +106,14 @@ class Resque_Job_Status
 			Resque::redis()->set((string)$this . ':timestarted', $now);
 		}
 
-		// Expire the status for completed jobs after 24 hours
+		// Expire the status for completed jobs after 30 days
 		if(in_array($status, self::$completeStatuses)) {
 			Resque::redis()->set((string)$this . ':timecompleted', $now);
 			Resque::redis()->expire((string)$this, self::STATUS_EXPIRE_SECS);
 			Resque::redis()->expire((string)$this . ':timequeued', self::STATUS_EXPIRE_SECS);
 			Resque::redis()->expire((string)$this . ':timestarted', self::STATUS_EXPIRE_SECS);
 			Resque::redis()->expire((string)$this . ':timecompleted', self::STATUS_EXPIRE_SECS);
+			Resque::redis()->expire((string)$this . ':errorcode', self::STATUS_EXPIRE_SECS);
 		}
 	}
 
