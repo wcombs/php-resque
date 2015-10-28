@@ -60,8 +60,11 @@ class Resque_Job
 			);
 		}
 		$id = md5(uniqid('', true));
-		$prefix = preg_replace('/:$/', '', Resque::redis()->getPrefix());
-		$args['logfile'] = '/logs/resque/' . $prefix . '_jobout/' . $id . '.log';
+
+		if (defined('JOB_OUT_NESTING_BASEDIR')) {
+			$args['logfile'] = JOB_OUT_NESTING_BASEDIR . substr($id, 0, 1) . '/' . substr($id, 1, 1) . '/' . $id . '.log';
+		}
+
 		Resque::push($queue, array(
 			'class'	=> $class,
 			'args'	=> array($args),
